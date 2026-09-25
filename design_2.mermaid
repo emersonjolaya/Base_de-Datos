@@ -1,0 +1,162 @@
+%% ============================================================
+%% BIORED - Modelo de datos v2
+%% Alcance: almacenamiento y gestion de datos recolectados por
+%% las estaciones de sensores (ESP32). No incluye modulos de
+%% usuarios, autenticacion ni inteligencia artificial.
+%% ============================================================
+%% Cambios clave respecto a v1 (ver design_1.mermaid):
+%% - Nombres de tablas/columnas en ingles, estandarizados.
+%% - Se separa el catalogo de sensores fisicos (SENSORS) de las
+%%   estaciones (STATIONS), permitiendo reemplazar un sensor sin
+%%   perder la trazabilidad historica de sus lecturas.
+%% - Las lecturas se separan por tipo de magnitud medida
+%%   (temperatura, humedad, luz, gas, audio) en lugar de por
+%%   modelo de hardware.
+%% - Se agrega LOCATIONS como catalogo generico de lugares
+%%   fisicos (finca, invernadero, escuela, etc.), referenciado
+%%   desde STATIONS para reportes futuros.
+%% - Metadatos especificos de cada sensor (ej. gas objetivo,
+%%   unidad de medida) se guardan en SENSORS.metadata (JSON) en
+%%   lugar de repetirse en cada lectura.
+%% - Se estandarizan columnas de auditoria: created_at,
+%%   updated_at, deleted_at (borrado logico) en todas las tablas.
+%% - Se resuelve la unicidad 1:1 entre READINGS y sus tablas de
+%%   detalle usando reading_id como PK y FK a la vez.
+%% - Se retira de CAMERA_CAPTURES cualquier campo de inferencia
+%%   de IA (queda fuera de alcance, como modulo independiente).
+%% ============================================================
+
+erDiagram
+    LOCATIONS {
+        bigint id PK "Identificador unico autoincremental"
+        varchar name "Nombre del lugar fisico (ej: Finca El Brayan, Invernadero 2, Escuela X)"
+        varchar description "Descripcion libre del lugar: tipo de sitio, direccion, referencia"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    STATIONS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint location_id FK "Lugar fisico al que pertenece la estacion (opcional, pensado para reportes futuros)"
+        varchar name "Nombre identificador de la estacion (ej: Estacion Zona A - 01)"
+        varchar location_detail "Ubicacion especifica dentro del lugar (ej: esquina norte, invernadero 2)"
+        varchar ip_address "Direccion IP asignada al dispositivo ESP32 en la red"
+        datetime registered_at "Fecha y hora en que la estacion fue registrada en el sistema"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; permite dar de baja una estacion sin perder su historial de lecturas"
+    }
+
+    SENSORS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion donde esta instalado este sensor fisico"
+        varchar model "Modelo de hardware del sensor (ej: DHT22, MQ135, LDR)"
+        json metadata "Parametros adicionales especificos del sensor (ej: gas objetivo, unidad de medida, ganancia del microfono en dB, calibracion); estructura flexible definida desde el sketch del ESP32"
+        datetime installed_at "Fecha en que el sensor fue instalado en la estacion"
+        datetime removed_at "Fecha en que el sensor fue retirado o reemplazado; NULL si sigue activo"
+        boolean is_active "Indica si el sensor esta actualmente en operacion"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    READINGS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que genero este evento de lectura"
+        datetime device_timestamp "Marca de tiempo reportada por el propio dispositivo ESP32"
+        datetime received_at "Marca de tiempo en que el servidor recibio la lectura (permite detectar latencia o desfase de reloj)"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    TEMPERATURE_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada (relacion uno a uno con READINGS)"
+        bigint sensor_id FK "Sensor fisico que tomo esta medicion"
+        decimal value_c "Temperatura medida, en grados Celsius"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    HUMIDITY_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada (relacion uno a uno con READINGS)"
+        bigint sensor_id FK "Sensor fisico que tomo esta medicion"
+        decimal value_pct "Humedad relativa medida, en porcentaje"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    LIGHT_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada (relacion uno a uno con READINGS)"
+        bigint sensor_id FK "Sensor fisico que tomo esta medicion"
+        smallint raw_value "Valor crudo leido del sensor, sin procesar"
+        tinyint percentage "Porcentaje de luminosidad calculado a partir del valor crudo"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    GAS_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada (relacion uno a uno con READINGS)"
+        bigint sensor_id FK "Sensor fisico que tomo esta medicion"
+        decimal output_voltage "Voltaje de salida reportado por el sensor"
+        smallint raw_value "Valor crudo leido del sensor"
+        decimal estimated_ppm "Concentracion estimada del gas, en partes por millon"
+        boolean alarm_triggered "Indica si se activo la alarma segun el umbral configurado en el momento de la lectura"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    AUDIO_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada (relacion uno a uno con READINGS)"
+        bigint sensor_id FK "Sensor fisico que tomo esta medicion"
+        decimal rms_level "Nivel de energia promedio del audio (RMS)"
+        decimal peak_level "Nivel pico detectado en la muestra de audio"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    MOTOR_COMMANDS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que ejecuto el comando"
+        varchar motor "Identificador o nombre del motor controlado"
+        varchar direction "Direccion de giro o movimiento ejecutado"
+        int steps "Cantidad de pasos ejecutados por el motor"
+        datetime executed_at "Fecha y hora de ejecucion del comando"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    CAMERA_CAPTURES {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que realizo la captura"
+        datetime captured_at "Marca de tiempo de la captura reportada por el dispositivo"
+        varchar image_path "Ruta o referencia de almacenamiento de la imagen capturada"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico; NULL si el registro sigue activo"
+    }
+
+    LOCATIONS ||--o{ STATIONS : "hosts"
+    STATIONS ||--o{ SENSORS : "has installed"
+    STATIONS ||--o{ READINGS : "records"
+    STATIONS ||--o{ MOTOR_COMMANDS : "executes"
+    STATIONS ||--o{ CAMERA_CAPTURES : "captures"
+
+    READINGS ||--o| TEMPERATURE_READINGS : "details"
+    READINGS ||--o| HUMIDITY_READINGS : "details"
+    READINGS ||--o| LIGHT_READINGS : "details"
+    READINGS ||--o| GAS_READINGS : "details"
+    READINGS ||--o| AUDIO_READINGS : "details"
+
+    SENSORS ||--o{ TEMPERATURE_READINGS : "produces"
+    SENSORS ||--o{ HUMIDITY_READINGS : "produces"
+    SENSORS ||--o{ LIGHT_READINGS : "produces"
+    SENSORS ||--o{ GAS_READINGS : "produces"
+    SENSORS ||--o{ AUDIO_READINGS : "produces"
