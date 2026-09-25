@@ -1,0 +1,77 @@
+erDiagram
+    ESTACIONES {
+        int id PK
+        varchar nombre
+        varchar ubicacion
+        varchar ip
+        decimal ganancia_mic_db
+        datetime fecha_registro
+    }
+
+    LECTURAS {
+        int id PK
+        int estacion_id FK
+        datetime timestamp_servidor
+        datetime recibido_en
+    }
+
+    LECTURAS_DHT22 {
+        int id PK
+        int lectura_id FK
+        decimal temperatura_c
+        decimal humedad_pct
+        boolean valido
+    }
+
+    LECTURAS_LDR {
+        int id PK
+        int lectura_id FK
+        smallint luz_raw
+        tinyint luz_porcentaje
+        varchar descripcion_luz
+    }
+
+    LECTURAS_MQ135 {
+        int id PK
+        int lectura_id FK
+        decimal voltaje_salida
+        smallint valor_raw
+        decimal ppm_estimado
+        varchar gas_objetivo
+        boolean alarma_activada
+    }
+
+    LECTURAS_AUDIO {
+        int id PK
+        int lectura_id FK
+        decimal nivel_rms
+        decimal nivel_pico
+        varchar unidad
+    }
+
+    COMANDOS_MOTOR {
+        int id PK
+        int estacion_id FK
+        varchar motor
+        varchar direccion
+        int pasos
+        datetime ejecutado_en
+    }
+
+    CAPTURAS_CAMARA {
+        int id PK
+        int estacion_id FK
+        datetime timestamp_servidor
+        varchar ruta_imagen
+        varchar especie_detectada
+        decimal confianza
+        varchar modelo_ia
+    }
+
+    ESTACIONES ||--o{ LECTURAS : registra
+    ESTACIONES ||--o{ COMANDOS_MOTOR : ejecuta
+    ESTACIONES ||--o{ CAPTURAS_CAMARA : captura
+    LECTURAS ||--o| LECTURAS_DHT22 : detalla
+    LECTURAS ||--o| LECTURAS_LDR : detalla
+    LECTURAS ||--o| LECTURAS_MQ135 : detalla
+    LECTURAS ||--o| LECTURAS_AUDIO : detalla
