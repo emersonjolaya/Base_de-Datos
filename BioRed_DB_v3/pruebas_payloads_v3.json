@@ -1,0 +1,425 @@
+{
+  "version_modelo": "v3",
+  "device_uid_estacion": "80:B5:4E:C7:50:94",
+  "nota": "Valores basados en lecturas reales del DHT22 y del MAX9814, y en las curvas del sketch MQ135_EPS32_Release con R0 = 4.938 kOhm",
+  "casos": [
+    {
+      "id": "P01",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "Lectura completa en aire limpio con los cuatro sensores y seis gases",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 69.5
+        },
+        "ldr": {
+          "raw": 1200
+        },
+        "mq135": {
+          "warmed_up": true,
+          "raw": 1340,
+          "output_voltage": 1.8,
+          "rs_kohm": 17.778,
+          "alarm": null,
+          "estimates": [
+            {
+              "gas": "CO2",
+              "ppm": 2.83
+            },
+            {
+              "gas": "CO",
+              "ppm": 3.91
+            },
+            {
+              "gas": "NH3",
+              "ppm": 4.3
+            },
+            {
+              "gas": "ALCOHOL",
+              "ppm": 1.31
+            },
+            {
+              "gas": "TOLUENE",
+              "ppm": 0.54
+            },
+            {
+              "gas": "ACETONE",
+              "ppm": 0.46
+            }
+          ]
+        },
+        "audio": {
+          "valid": true,
+          "rms_mv": 61.0,
+          "peak_to_peak_mv": 480,
+          "offset_mv": 1220,
+          "sample_rate_hz": 8000
+        }
+      }
+    },
+    {
+      "id": "P02",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "El DHT22 falla y el firmware envia -1. Debe guardarse NULL con is_valid falso",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3660,
+        "dht22": {
+          "valid": false,
+          "temperature_c": -1.0,
+          "humidity_pct": -1.0
+        },
+        "ldr": {
+          "raw": 1250
+        },
+        "mq135": {
+          "warmed_up": true,
+          "raw": 1355,
+          "output_voltage": 1.82,
+          "rs_kohm": 17.473,
+          "alarm": null,
+          "estimates": [
+            {
+              "gas": "CO2",
+              "ppm": 2.97
+            },
+            {
+              "gas": "CO",
+              "ppm": 4.18
+            },
+            {
+              "gas": "NH3",
+              "ppm": 4.49
+            },
+            {
+              "gas": "ALCOHOL",
+              "ppm": 1.39
+            },
+            {
+              "gas": "TOLUENE",
+              "ppm": 0.58
+            },
+            {
+              "gas": "ACETONE",
+              "ppm": 0.49
+            }
+          ]
+        },
+        "audio": {
+          "valid": true,
+          "rms_mv": 51.6,
+          "peak_to_peak_mv": 395,
+          "offset_mv": 1220,
+          "sample_rate_hz": 8000
+        }
+      }
+    },
+    {
+      "id": "P03",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "MQ-135 en calentamiento. No debe crearse fila de gas",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 60,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.4,
+          "humidity_pct": 70.1
+        },
+        "ldr": {
+          "raw": 980
+        },
+        "mq135": {
+          "warmed_up": false,
+          "raw": 2159,
+          "output_voltage": 2.9,
+          "rs_kohm": 7.241,
+          "alarm": null,
+          "estimates": [
+            {
+              "gas": "CO2",
+              "ppm": 36.93
+            },
+            {
+              "gas": "CO",
+              "ppm": 134.05
+            },
+            {
+              "gas": "NH3",
+              "ppm": 39.65
+            },
+            {
+              "gas": "ALCOHOL",
+              "ppm": 22.87
+            },
+            {
+              "gas": "TOLUENE",
+              "ppm": 12.02
+            },
+            {
+              "gas": "ACETONE",
+              "ppm": 9.54
+            }
+          ]
+        },
+        "audio": {
+          "valid": true,
+          "rms_mv": 24.2,
+          "peak_to_peak_mv": 213,
+          "offset_mv": 1220,
+          "sample_rate_hz": 7600
+        }
+      }
+    },
+    {
+      "id": "P04",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "Aire con gases y microfono desconectado. Audio se guarda con is_valid falso",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3720,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.7,
+          "humidity_pct": 69.2
+        },
+        "ldr": {
+          "raw": 3100
+        },
+        "mq135": {
+          "warmed_up": true,
+          "raw": 1936,
+          "output_voltage": 2.6,
+          "rs_kohm": 9.231,
+          "alarm": true,
+          "estimates": [
+            {
+              "gas": "CO2",
+              "ppm": 18.44
+            },
+            {
+              "gas": "CO",
+              "ppm": 51.55
+            },
+            {
+              "gas": "NH3",
+              "ppm": 21.76
+            },
+            {
+              "gas": "ALCOHOL",
+              "ppm": 10.57
+            },
+            {
+              "gas": "TOLUENE",
+              "ppm": 5.21
+            },
+            {
+              "gas": "ACETONE",
+              "ppm": 4.21
+            }
+          ]
+        },
+        "audio": {
+          "valid": false,
+          "rms_mv": 15.2,
+          "peak_to_peak_mv": 1319,
+          "offset_mv": 0,
+          "sample_rate_hz": 7976
+        }
+      }
+    },
+    {
+      "id": "P05",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "Solo llega el DHT22. Solo deben crearse filas de temperatura y humedad",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3780,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 69.6
+        }
+      }
+    },
+    {
+      "id": "P06",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "La MAC llega en minusculas. Debe reconocerse la misma estacion",
+      "payload": {
+        "device_uid": "80:b5:4e:c7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3840,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 69.5
+        },
+        "audio": {
+          "valid": true,
+          "rms_mv": 61.0,
+          "peak_to_peak_mv": 480,
+          "offset_mv": 1220,
+          "sample_rate_hz": 8000
+        }
+      }
+    },
+    {
+      "id": "P07",
+      "esperado": "ok",
+      "mensaje_esperado": null,
+      "descripcion": "Una estimacion se desborda (3.4e38). Se descarta y se guardan las otras cinco",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3900,
+        "mq135": {
+          "warmed_up": true,
+          "raw": 1377,
+          "output_voltage": 1.85,
+          "rs_kohm": 17.027,
+          "alarm": null,
+          "estimates": [
+            {
+              "gas": "CO2",
+              "ppm": 3.2
+            },
+            {
+              "gas": "CO",
+              "ppm": 3.4028235e+38
+            },
+            {
+              "gas": "NH3",
+              "ppm": 4.79
+            },
+            {
+              "gas": "ALCOHOL",
+              "ppm": 1.51
+            },
+            {
+              "gas": "TOLUENE",
+              "ppm": 0.63
+            },
+            {
+              "gas": "ACETONE",
+              "ppm": 0.54
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "P08",
+      "esperado": "error",
+      "mensaje_esperado": "no registrada",
+      "descripcion": "Estacion con una MAC que no esta registrada",
+      "payload": {
+        "device_uid": "AA:BB:CC:DD:EE:FF",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 69.5
+        }
+      }
+    },
+    {
+      "id": "P09",
+      "esperado": "error",
+      "mensaje_esperado": "device_uid",
+      "descripcion": "El envio no trae device_uid",
+      "payload": {
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 69.5
+        }
+      }
+    },
+    {
+      "id": "P10",
+      "esperado": "error",
+      "mensaje_esperado": "chk_humidity_valor",
+      "descripcion": "Humedad de 150 % marcada como valida. No debe quedar nada guardado",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "dht22": {
+          "valid": true,
+          "temperature_c": 21.6,
+          "humidity_pct": 150.0
+        },
+        "ldr": {
+          "raw": 1200
+        }
+      }
+    },
+    {
+      "id": "P11",
+      "esperado": "error",
+      "mensaje_esperado": "chk_light_raw",
+      "descripcion": "LDR con valor 5000, fuera del rango del ADC de 12 bits",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "ldr": {
+          "raw": 5000
+        }
+      }
+    },
+    {
+      "id": "P12",
+      "esperado": "error",
+      "mensaje_esperado": "gas",
+      "descripcion": "Gas desconocido METHANE en las estimaciones",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600,
+        "mq135": {
+          "warmed_up": true,
+          "raw": 1340,
+          "output_voltage": 1.8,
+          "rs_kohm": 17.778,
+          "alarm": null,
+          "estimates": [
+            {
+              "gas": "METHANE",
+              "ppm": 5.0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "P13",
+      "esperado": "error",
+      "mensaje_esperado": "ningun sensor",
+      "descripcion": "El envio no trae datos de ningun sensor",
+      "payload": {
+        "device_uid": "80:B5:4E:C7:50:94",
+        "firmware_version": "2.1.0",
+        "uptime_s": 3600
+      }
+    }
+  ]
+}
