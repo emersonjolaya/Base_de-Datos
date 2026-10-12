@@ -1,0 +1,218 @@
+%% ============================================================
+%% BIORED - Modelo de datos v3
+%% Alcance - almacenamiento y gestion de datos recolectados por
+%% las estaciones de sensores (ESP32). No incluye modulos de
+%% usuarios, autenticacion ni inteligencia artificial.
+%% Basado en design_2.mermaid, que se conserva sin cambios.
+%% Firmware de referencia - BioRed_v2_1_Microfono.ino (DHT22,
+%% LDR, MAX9814) y MQ135_EPS32_Release.ino (MQ-135).
+%% ============================================================
+%% Cambios respecto a v2
+%% ------------------------------------------------------------
+%% Criticos
+%%  1. STATIONS.device_uid (MAC del ESP32, unico y obligatorio)
+%%     identifica la estacion. La IP la asigna el router y puede
+%%     cambiar, queda solo como dato informativo.
+%%  2. READINGS.device_timestamp se reemplaza por device_uptime_s.
+%%     El ESP32 no tiene reloj, solo conoce los segundos que lleva
+%%     encendido (sirve para detectar reinicios). La hora oficial
+%%     de cada lectura es received_at, asignada por el servidor.
+%%     El mismo criterio aplica a MOTOR_COMMANDS.executed_at y a
+%%     CAMERA_CAPTURES.captured_at.
+%%  3. TEMPERATURE_READINGS y HUMIDITY_READINGS agregan is_valid.
+%%     Cuando el DHT22 falla el firmware envia -1.0, ese valor
+%%     NUNCA se guarda, la columna de valor queda en NULL.
+%%  4. GAS_READINGS guarda la medicion fisica rs_kohm para poder
+%%     recalcular los ppm. Los seis gases estimados pasan a la
+%%     tabla hija GAS_ESTIMATES. R0, VCC, RL, factor del divisor
+%%     y coeficientes de las curvas van en SENSORS.metadata.
+%% ------------------------------------------------------------
+%% Importantes
+%%  5. AUDIO_READINGS se alinea con el firmware - rms_mv,
+%%     peak_to_peak_mv, offset_mv, sample_rate_hz e is_valid.
+%%     level_db es columna generada a partir de rms_mv.
+%%  6. Las lecturas y los comandos de motor son inmutables. Se
+%%     retiran updated_at y deleted_at de READINGS, de las tablas
+%%     de detalle y de MOTOR_COMMANDS. Solo conservan created_at.
+%%  7. Se retira SENSORS.is_active porque repetia lo que indica
+%%     removed_at. Se definen las claves de metadata por modelo
+%%     (ver abajo).
+%%  8. READINGS.firmware_version registra la version del firmware
+%%     que produjo cada lectura (por ejemplo 2.1.0).
+%% ------------------------------------------------------------
+%% Menores
+%%  9. LOCATIONS a STATIONS pasa a cero o uno (|o), porque la
+%%     ubicacion de una estacion es opcional.
+%% 10. Se retira STATIONS.registered_at porque repetia created_at.
+%% 11. MOTOR_COMMANDS agrega success y limita motor y direction a
+%%     los valores que usa el firmware.
+%% 12. LIGHT_READINGS.percentage pasa a columna generada.
+%% 13. Se documentan precision sugerida e indices para el DDL.
+%% ------------------------------------------------------------
+%% CAMERA_CAPTURES se mantiene sin campos de inteligencia
+%% artificial. El reconocimiento de especies no va por ahora.
+%% ============================================================
+%% Reglas de uso
+%%  - Cambiar la configuracion de un sensor (ganancia, R0, pin)
+%%    = cerrar su registro con removed_at y crear uno nuevo en
+%%    SENSORS. Nunca editar metadata de un sensor con lecturas.
+%%  - Si una magnitud no llega en un envio, no se inserta fila en
+%%    su tabla de detalle (relacion cero o uno).
+%%  - No se insertan lecturas de gas durante el calentamiento del
+%%    MQ-135.
+%%  - Lecturas de audio con is_valid = false se guardan tal como
+%%    llegan, offset_mv permite diagnosticar la falla.
+%% ============================================================
+%% Claves de SENSORS.metadata por modelo
+%%  DHT22   -> pin
+%%  LDR     -> pin, adc_bits
+%%  MQ135   -> pin, vcc_v (5.0), rl_kohm, r0_kohm,
+%%             clean_air_ratio (3.6), divider_factor (0.6),
+%%             curves (coeficientes a y b por gas)
+%%  MAX9814 -> pin, gain_db (50), ar_ratio (1 a 4000),
+%%             unit (dB_rel), target_sample_rate_hz (8000)
+%% ============================================================
+%% Indices sugeridos para el DDL
+%%  - STATIONS (device_uid) UNIQUE
+%%  - READINGS (station_id, received_at)
+%%  - SENSORS (station_id, model, removed_at)
+%%  - MOTOR_COMMANDS (station_id, executed_at)
+%%  - CAMERA_CAPTURES (station_id, captured_at)
+%% ============================================================
+
+erDiagram
+    LOCATIONS {
+        bigint id PK "Identificador unico autoincremental"
+        varchar name "Nombre del lugar fisico, por ejemplo Finca El Brayan o Invernadero 2"
+        varchar description "Descripcion libre del lugar, tipo de sitio, direccion o referencia"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico, NULL si el registro sigue activo"
+    }
+
+    STATIONS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint location_id FK "Lugar fisico de la estacion, opcional (NULL permitido)"
+        varchar device_uid UK "MAC del ESP32, identificador estable que el firmware envia en cada POST. VARCHAR(17)"
+        varchar name "Nombre identificador de la estacion, por ejemplo Estacion Zona A - 01"
+        varchar location_detail "Ubicacion especifica dentro del lugar, por ejemplo esquina norte"
+        varchar ip_address "IP actual del ESP32, solo informativa porque puede cambiar"
+        datetime created_at "Fecha y hora en que la estacion se registro en el sistema"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico, permite dar de baja una estacion sin perder su historial"
+    }
+
+    SENSORS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion donde esta instalado este sensor fisico"
+        varchar model "Modelo de hardware - DHT22, LDR, MQ135 o MAX9814"
+        json metadata "Configuracion del sensor segun su modelo, claves definidas en el encabezado"
+        datetime installed_at "Fecha en que el sensor se instalo o se configuro en la estacion"
+        datetime removed_at "Fecha en que se retiro o se cambio su configuracion, NULL si sigue activo"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico, NULL si el registro sigue activo"
+    }
+
+    READINGS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que genero este evento de lectura"
+        datetime received_at "Hora oficial de la lectura, asignada por el servidor al recibirla"
+        bigint device_uptime_s "Segundos que llevaba encendido el ESP32, si baja indica un reinicio"
+        varchar firmware_version "Version del firmware que produjo la lectura, por ejemplo 2.1.0"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    TEMPERATURE_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada, relacion uno a uno con READINGS"
+        bigint sensor_id FK "Sensor fisico que tomo la medicion (DHT22)"
+        decimal value_c "Temperatura en grados Celsius, NULL si is_valid es falso. DECIMAL(4,1)"
+        boolean is_valid "Falso cuando el DHT22 no respondio"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    HUMIDITY_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada, relacion uno a uno con READINGS"
+        bigint sensor_id FK "Sensor fisico que tomo la medicion (DHT22)"
+        decimal value_pct "Humedad relativa en porcentaje, NULL si is_valid es falso. DECIMAL(4,1)"
+        boolean is_valid "Falso cuando el DHT22 no respondio"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    LIGHT_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada, relacion uno a uno con READINGS"
+        bigint sensor_id FK "Sensor fisico que tomo la medicion (LDR)"
+        smallint raw_value "Valor crudo del ADC de 12 bits, de 0 a 4095. SMALLINT UNSIGNED"
+        tinyint percentage "Columna generada, ROUND(raw_value * 100 / 4095)"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    GAS_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada, relacion uno a uno con READINGS"
+        bigint sensor_id FK "Sensor fisico que tomo la medicion (MQ135)"
+        smallint raw_value "Valor crudo del ADC en el pin, despues del divisor. SMALLINT UNSIGNED"
+        decimal output_voltage "Voltaje real de A-out en V, compensado con el factor del divisor. DECIMAL(5,3)"
+        decimal rs_kohm "Resistencia del sensor en kOhm, base para recalcular los ppm. DECIMAL(8,3)"
+        boolean alarm_triggered "Salida digital DO del modulo, NULL mientras DO no este conectado"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    GAS_ESTIMATES {
+        bigint reading_id PK, FK "Lectura de gas asociada"
+        enum gas PK "Gas estimado - CO2, CO, NH3, ALCOHOL, TOLUENE o ACETONE"
+        decimal ppm "Concentracion estimada en partes por millon, valor orientativo. DECIMAL(10,2)"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    AUDIO_READINGS {
+        bigint reading_id PK, FK "Lectura general asociada, relacion uno a uno con READINGS"
+        bigint sensor_id FK "Sensor fisico que tomo la medicion (MAX9814)"
+        decimal rms_mv "Nivel RMS de la senal sin offset, en mV. DECIMAL(7,2)"
+        decimal peak_to_peak_mv "Amplitud pico a pico maxima del intervalo, en mV. DECIMAL(7,2)"
+        decimal level_db "Columna generada, 20 * LOG10(GREATEST(rms_mv, 0.1)), en dB relativos a 1 mV"
+        decimal offset_mv "Offset DC promedio en mV, cerca de 1250 si la conexion esta bien. DECIMAL(6,1)"
+        smallint sample_rate_hz "Frecuencia de muestreo efectiva, baja cuando los motores se mueven. SMALLINT UNSIGNED"
+        boolean is_valid "Falso si el offset quedo fuera del rango esperado"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    MOTOR_COMMANDS {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que ejecuto el comando"
+        enum motor "Motor controlado - pan o tilt"
+        enum direction "Direccion enviada al firmware - ARRIBA, ABAJO, IZQ o DER"
+        smallint steps "Pasos ejecutados, el firmware los limita de 1 a 200"
+        boolean success "Falso si el firmware rechazo la orden"
+        datetime executed_at "Hora del comando, asignada por el servidor"
+        datetime created_at "Fecha y hora de insercion del registro"
+    }
+
+    CAMERA_CAPTURES {
+        bigint id PK "Identificador unico autoincremental"
+        bigint station_id FK "Estacion que realizo la captura"
+        datetime captured_at "Hora de la captura, asignada por el servidor"
+        varchar image_path "Ruta o referencia de almacenamiento de la imagen capturada"
+        datetime created_at "Fecha y hora de creacion del registro"
+        datetime updated_at "Fecha y hora de la ultima actualizacion del registro"
+        datetime deleted_at "Borrado logico, NULL si el registro sigue activo"
+    }
+
+    LOCATIONS |o--o{ STATIONS : "hosts"
+    STATIONS ||--o{ SENSORS : "has installed"
+    STATIONS ||--o{ READINGS : "records"
+    STATIONS ||--o{ MOTOR_COMMANDS : "executes"
+    STATIONS ||--o{ CAMERA_CAPTURES : "captures"
+
+    READINGS ||--o| TEMPERATURE_READINGS : "details"
+    READINGS ||--o| HUMIDITY_READINGS : "details"
+    READINGS ||--o| LIGHT_READINGS : "details"
+    READINGS ||--o| GAS_READINGS : "details"
+    READINGS ||--o| AUDIO_READINGS : "details"
+
+    GAS_READINGS ||--o{ GAS_ESTIMATES : "estimates"
+
+    SENSORS ||--o{ TEMPERATURE_READINGS : "produces"
+    SENSORS ||--o{ HUMIDITY_READINGS : "produces"
+    SENSORS ||--o{ LIGHT_READINGS : "produces"
+    SENSORS ||--o{ GAS_READINGS : "produces"
+    SENSORS ||--o{ AUDIO_READINGS : "produces"
