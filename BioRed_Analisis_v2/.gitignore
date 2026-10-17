@@ -1,0 +1,5 @@
+# Capturas de cada fase del desarrollo (las del README están en capturas/)
+capturas_fase*/
+
+# Respuestas de ejemplo generadas con herramientas/exportar_json.js
+datos/respuesta_api_*.json
