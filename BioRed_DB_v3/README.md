@@ -8,6 +8,8 @@ Scripts para crear en MySQL la base de datos de BioRed según el modelo `design_
 
 > Las versiones anteriores a MySQL 8.0.21 no funcionan, porque el procedimiento de ingesta usa `JSON_VALUE`.
 
+> Este README describe el modelo y sus pruebas tal como los construí y validé. Si vas a montar la base para recibir datos reales de las estaciones, lee primero la sección [Uso con la integración actual](#uso-con-la-integración-actual).
+
 ## Contenido
 
 | Archivo | Para qué sirve |
@@ -23,7 +25,7 @@ Scripts para crear en MySQL la base de datos de BioRed según el modelo `design_
 
 ## Orden de ejecución
 
-Ejecutar en orden, como administrador.
+Este orden sirve para crear el modelo y probarlo de punta a punta en un equipo propio. Ejecutar en orden, como administrador. Para el servidor que recibe datos reales, ver [Uso con la integración actual](#uso-con-la-integración-actual).
 
 **En el servidor Ubuntu**
 ```bash
@@ -42,6 +44,67 @@ sudo mysql --table < 07_limpiar_pruebas.sql    # solo antes de recibir datos rea
 - La clave de `biored_app` no se debe guardar en el archivo ni subir a ningún repositorio. En Workbench, cambiarla en el editor y cerrar sin guardar.
 - El script 04 se ejecuta una sola vez. Si se repite, la MAC duplicada se rechaza, como corresponde.
 - Si se vuelve a ejecutar el 01, hay que repetir del 02 al 06.
+
+## Uso con la integración actual
+
+Después de validar el modelo, la base quedó funcionando dentro de un sistema completo que hoy recibe datos reales. Las estaciones ESP32 envían sus lecturas por HTTPS al dominio `https://biored-analytic.brayan36.com`, que publica la API `biored-analytic-app` desde una Raspberry Pi. La API valida cada envío y lo guarda en esta misma base `biored`.
+
+```
+ESP32 (firmware modular + módulo EnvioAPI)
+  └─ HTTPS POST /api/v1/readings/ingest con key de dispositivo
+       └─ Cloudflare (túnel)
+            └─ biored-analytic-app (Node.js, en la Raspberry Pi)
+                 └─ MySQL, base biored (este modelo v3)
+```
+
+| Repositorio | Contenido |
+|---|---|
+| [biored-analytic-app](https://github.com/Brayan36/biored-analytic-app) | API, ingesta, dashboard y módulo de análisis integrado. Su guía `docs/despliegue.md` explica cómo montar el servidor y `docs/registro-estacion.md` cómo dar de alta una estación |
+| [ESP32-S3-FW-BioRed](https://github.com/Brayan36/ESP32-S3-FW-BioRed) | Firmware modular de la estación, con el módulo `EnvioAPI` que envía las lecturas cada 30 s |
+
+Si alguno de los dos repositorios aparece como privado, hay que pedir acceso a su administrador.
+
+### Scripts que se ejecutan en el servidor
+
+| Script | En el servidor real | Motivo |
+|---|---|---|
+| `01_schema_v3.sql` | **Sí**, una sola vez | Crea la base y las 12 tablas. Borra la base si ya existe, así que nunca se repite con datos reales |
+| `02_usuario_app.sql` | Sí, si la API se conecta con `biored_app` | Requiere los permisos adicionales de la tabla de abajo |
+| `03_procedimiento_ingesta.sql` | No | La API no usa `sp_ingest_reading`. Aplica las mismas reglas en su propio código. El procedimiento queda como referencia para probar el modelo |
+| `04_datos_iniciales.sql` | Opcional | Registra la estación `80:B5:4E:C7:50:94`. Las demás estaciones se registran por la API |
+| `05` a `07` | **No** | Son solo para probar el modelo. El 05 inserta lecturas de prueba que se mezclarían con los datos reales |
+
+### Permisos adicionales de `biored_app`
+
+El script 02 deja que la aplicación lea todo e inserte lecturas, pero los catálogos los administraba una persona. Hoy la API también registra lugares, estaciones y sensores, así que necesita estos permisos, ejecutados por un administrador.
+
+```sql
+GRANT INSERT, UPDATE ON biored.locations       TO 'biored_app'@'localhost';
+GRANT INSERT, UPDATE ON biored.stations        TO 'biored_app'@'localhost';
+GRANT INSERT, UPDATE ON biored.sensors         TO 'biored_app'@'localhost';
+GRANT UPDATE         ON biored.camera_captures TO 'biored_app'@'localhost';
+```
+
+Las lecturas siguen inmutables. Nunca se otorga `UPDATE` ni `DELETE` sobre ellas.
+
+### Registro de estaciones nuevas
+
+Las estaciones nuevas no se agregan editando el script 04. Se registran con la colección de Postman de `biored-analytic-app` usando la key de administración, siguiendo `docs/registro-estacion.md`. Primero se crea la estación con la MAC de la placa y después se instalan sus sensores.
+
+### Diferencias del script 04 con el hardware actual
+
+Diseñé el script 04 con el plan de pines que existía antes del firmware modular. La configuración de los sensores (`metadata`) es informativa y la API no la valida, así que las lecturas se guardan bien aunque los pines no coincidan. Si se quiere dejar la configuración exacta, se retira el sensor y se instala uno nuevo por la API, sin editar el registro.
+
+| Sensor | Script 04 | Firmware modular actual |
+|---|---|---|
+| DHT22 | Pin 14 | Pin 14, sin cambios |
+| LDR | Pin 34 | No existe. El GPIO34 no está en el ESP32-S3. El sensor queda registrado sin lecturas y la API no lo exige porque el firmware no envía la sección `ldr` |
+| MQ-135 | Pin 1, divisor con factor 0.6 | Pin 3, sin divisor de voltaje |
+| MAX9814 | Pin 3 | Pin 19 |
+
+### El contrato JSON no cambió
+
+La API recibe exactamente el formato de la sección siguiente en `POST /api/v1/readings/ingest`, con la key de la estación en la cabecera `x-api-key`. Las mismas reglas del modelo se aplican en la API. Los casos P01 a P13 de `pruebas_payloads_v3.json` también están en la colección de Postman, pero solo deben ejecutarse contra un servidor de pruebas.
 
 ## Formato del JSON (contrato con el firmware)
 
@@ -94,7 +157,7 @@ Gases válidos en `estimates` son CO2, CO, NH3, ALCOHOL, TOLUENE y ACETONE. La h
 | P12 | Gas desconocido METHANE | Rechazado, "gas no reconocido" |
 | P13 | Envío sin datos de sensores | Rechazado, "ningun sensor" |
 
-Los valores del set se basan en lecturas reales del DHT22 y del MAX9814, y en las curvas del sketch `MQ135_EPS32_Release.ino` con R0 = 4.938 kΩ.
+Los valores del set se basan en lecturas reales del DHT22 y del MAX9814. Para el MQ-135 usé las curvas del sketch `MQ135_EPS32_Release.ino` con R0 = 4.938 kΩ.
 
 ## Verificaciones del script 06
 
@@ -117,8 +180,8 @@ Los valores del set se basan en lecturas reales del DHT22 y del MAX9814, y en la
 
 ## Notas para el backend y el firmware
 
-- **Backend de ingesta.** Puede conectarse como `biored_app` y llamar `CALL sp_ingest_reading(json, @reading_id)`. El procedimiento ya valida y guarda todo en una transacción. Queda pendiente un token secreto por estación para autenticar los envíos.
-- **MQ-135.** Los datos asumen el divisor de voltaje (factor 0.6) instalado y la salida en el GPIO1, según el plan de pines propuesto. También conviene usar `setVCC(5.0)` en la librería, porque por defecto calcula con 3.3 V. Si el pin final es otro, se ajusta en el script 04.
-- **Curvas del MQ-135.** En aire limpio dan cerca de 2.8 ppm de CO2, mientras el CO2 real en el aire ronda los 400 ppm. Las estimaciones son orientativas.
-- **Porcentaje de luz.** MySQL redondea (1200 da 29 %, 3100 da 76 %) y el `map()` del sketch trunca (3100 da 75 %). Pendiente decidir cuál criterio queda.
-- **Configuración de sensores.** Si cambia el pin, la ganancia o el R0 de un sensor, no se edita su registro. Se cierra con `removed_at` y se crea uno nuevo en `sensors`, para conservar el historial.
+- **Backend de ingesta.** La API `biored-analytic-app` aplica las reglas de esta sección en su propio código y guarda cada envío en una transacción. No llama a `sp_ingest_reading`, que queda como referencia para las pruebas del modelo. La autenticación que figuraba como pendiente ya existe, porque cada estación envía su propia key de dispositivo en la cabecera `x-api-key`.
+- **MQ-135.** El set de pruebas asume un divisor de voltaje con factor 0.6 en el GPIO1. El firmware modular actual lee el sensor en el GPIO3 sin divisor y calcula con 5 V de alimentación y 3,3 V de referencia del ADC. Antes de un despliegue permanente conviene instalar el divisor, porque la salida del sensor puede superar los 3,3 V que admite el ESP32-S3.
+- **Curvas del MQ-135.** En aire limpio dan cerca de 2.8 ppm de CO2, mientras el CO2 real en el aire ronda los 400 ppm. Además el firmware recalibra R0 en cada arranque. Por eso las estimaciones son orientativas y cambian de una sesión a otra.
+- **Porcentaje de luz.** MySQL redondea (1200 da 29 %, 3100 da 76 %) y el `map()` del sketch anterior truncaba (3100 da 75 %). Hoy no aplica porque el firmware modular no tiene LDR. Queda pendiente para cuando se reubique el sensor.
+- **Configuración de sensores.** Si cambia el pin, la ganancia o el R0 de un sensor, no se edita su registro. Se cierra con `removed_at` y se crea uno nuevo en `sensors`, para conservar el historial. Con la API se hace con las peticiones "Retirar sensor" e "Instalar sensor" de Postman.
