@@ -36,7 +36,7 @@ INSERT INTO sensors (station_id, model, metadata) VALUES
 -- calibrar el MQ-135 en aire limpio.
 (@estacion, 'MQ135',
  JSON_OBJECT(
-   'pin', 1,
+   'pin', 3,
    'vcc_v', 5.0,
    'rl_kohm', 10,
    'r0_kohm', NULL,
@@ -51,7 +51,7 @@ INSERT INTO sensors (station_id, model, metadata) VALUES
      'ACETONE', JSON_OBJECT('a', 34.668, 'b', -3.369)))),
 
 (@estacion, 'MAX9814',
- JSON_OBJECT('pin', 3, 'gain_db', 50, 'ar_ratio', '1:4000',
+ JSON_OBJECT('pin', 19, 'gain_db', 50, 'ar_ratio', '1:4000',
              'unit', 'dB_rel', 'target_sample_rate_hz', 8000));
 
 -- Resultado esperado  1 estacion y 4 sensores activos
